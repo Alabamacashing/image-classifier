@@ -5,6 +5,9 @@ import torch
 import json
 import urllib.request
 import io
+import os
+
+os.environ["TORCH_HOME"] = "/opt/render/.cache/torch"
 
 app = Flask(__name__)
 
