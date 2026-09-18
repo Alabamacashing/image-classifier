@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Classifier</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0f0f1a;
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: #1a1a2e;
+            border-radius: 20px;
+            padding: 40px;
+            width: 90%;
+            max-width: 620px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        h1 {
+            text-align: center;
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #06b6d4, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+        .upload-area {
+            border: 2px dashed #333;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.3s;
+            position: relative;
+        }
+        .upload-area:hover { border-color: #3b82f6; }
+        .upload-area.dragover { border-color: #06b6d4; background: #0f0f2a; }
+        .upload-icon { font-size: 3rem; margin-bottom: 12px; }
+        .upload-text { color: #888; font-size: 0.95rem; }
+        .upload-text span { color: #3b82f6; cursor: pointer; }
+        #fileInput { display: none; }
+        #preview {
+            width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            border-radius: 12px;
+            margin-top: 16px;
+            display: none;
+        }
+        button {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #06b6d4, #3b82f6);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 16px;
+            transition: opacity 0.3s;
+        }
+        button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .results {
+            margin-top: 24px;
+            display: none;
+        }
+        .results h3 {
+            color: #888;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .prediction {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .pred-label {
+            width: 160px;
+            font-size: 0.95rem;
+            flex-shrink: 0;
+        }
+        .pred-bar-bg {
+            flex: 1;
+            background: #0f0f1a;
+            border-radius: 8px;
+            height: 10px;
+            overflow: hidden;
+            margin: 0 12px;
+        }
+        .pred-bar {
+            height: 100%;
+            background: linear-gradient(135deg, #06b6d4, #3b82f6);
+            border-radius: 8px;
+            transition: width 0.6s ease;
+        }
+        .pred-conf {
+            width: 55px;
+            text-align: right;
+            font-size: 0.9rem;
+            color: #06b6d4;
+            font-weight: bold;
+        }
+        .top-result {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: #0f0f1a;
+            border-radius: 12px;
+        }
+        .top-label { font-size: 1.6rem; font-weight: bold; color: #06b6d4; }
+        .top-conf { color: #888; font-size: 0.9rem; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Image Classifier</h1>
+        <p class="subtitle">Powered by ResNet-50 — recognizes 1000 different categories</p>
+
+        <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+            <div class="upload-icon">📷</div>
+            <div class="upload-text">Drop an image here or <span>browse to upload</span></div>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+
+        <img id="preview" alt="Preview">
+
+        <button onclick="classify()" id="btn" style="display:none;">Classify Image</button>
+
+        <div class="results" id="results">
+            <div class="top-result">
+                <div class="top-label" id="topLabel"></div>
+                <div class="top-conf" id="topConf"></div>
+            </div>
+            <h3>Top 5 Predictions</h3>
+            <div id="predList"></div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById("fileInput");
+        const uploadArea = document.getElementById("uploadArea");
+        const preview = document.getElementById("preview");
+        const btn = document.getElementById("btn");
+
+        fileInput.addEventListener("change", handleFile);
+
+        uploadArea.addEventListener("dragover", e => {
+            e.preventDefault();
+            uploadArea.classList.add("dragover");
+        });
+        uploadArea.addEventListener("dragleave", () => uploadArea.classList.remove("dragover"));
+        uploadArea.addEventListener("drop", e => {
+            e.preventDefault();
+            uploadArea.classList.remove("dragover");
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith("image/")) showPreview(file);
+        });
+
+        function handleFile(e) {
+            const file = e.target.files[0];
+            if (file) showPreview(file);
+        }
+
+        function showPreview(file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                preview.src = e.target.result;
+                preview.style.display = "block";
+                btn.style.display = "block";
+                document.getElementById("results").style.display = "none";
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function classify() {
+            const file = fileInput.files[0] || null;
+            const formData = new FormData();
+
+            // Handle both file input and drag-drop
+            const dataUrl = preview.src;
+            const blob = await (await fetch(dataUrl)).blob();
+            formData.append("image", blob, "image.jpg");
+
+            btn.disabled = true;
+            btn.textContent = "Classifying...";
+
+            try {
+                const response = await fetch("/classify", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                const preds = data.predictions;
+                document.getElementById("topLabel").textContent = preds[0].label;
+                document.getElementById("topConf").textContent = `Confidence: ${preds[0].confidence}%`;
+
+                const predList = document.getElementById("predList");
+                predList.innerHTML = "";
+                preds.forEach(p => {
+                    predList.innerHTML += `
+                        <div class="prediction">
+                            <div class="pred-label">${p.label}</div>
+                            <div class="pred-bar-bg">
+                                <div class="pred-bar" style="width: ${p.confidence}%"></div>
+                            </div>
+                            <div class="pred-conf">${p.confidence}%</div>
+                        </div>`;
+                });
+
+                document.getElementById("results").style.display = "block";
+            } catch (err) {
+                alert("Something went wrong. Please try again.");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Classify Image";
+            }
+        }
+    </script>
+</body>
+</html>
