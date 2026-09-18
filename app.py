@@ -8,9 +8,9 @@ import io
 
 app = Flask(__name__)
 
-# Load ResNet-50 pretrained model
+# Load MobileNetV2 — lightweight and fast
 print("Loading image classification model...")
-model = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.DEFAULT)
 model.eval()
 print("Model ready!")
 
@@ -44,17 +44,14 @@ def classify():
         return jsonify({"error": "No image selected"})
 
     try:
-        # Read and preprocess the image
         img_bytes = file.read()
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
         tensor = preprocess(img).unsqueeze(0)
 
-        # Run inference
         with torch.no_grad():
             outputs = model(tensor)
             probabilities = torch.nn.functional.softmax(outputs[0], dim=0)
 
-        # Get top 5 predictions
         top5_prob, top5_idx = torch.topk(probabilities, 5)
         results = []
         for prob, idx in zip(top5_prob, top5_idx):
