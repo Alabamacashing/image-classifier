@@ -1,37 +1,16 @@
 from flask import Flask, render_template, request, jsonify
-from torchvision import models, transforms
-from PIL import Image
-import torch
-import json
-import urllib.request
-import io
+import requests
 import os
-
-os.environ["TORCH_HOME"] = "/opt/render/.cache/torch"
 
 app = Flask(__name__)
 
-# Load MobileNetV2 — lightweight and fast
-print("Loading image classification model...")
-model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.DEFAULT)
-model.eval()
-print("Model ready!")
+HF_API_TOKEN = os.environ.get("HF_API_TOKEN")
+API_URL = "https://api-inference.huggingface.co/models/google/vit-base-patch16-224"
 
-# Load ImageNet class labels
-LABELS_URL = "https://raw.githubusercontent.com/anishathalye/imagenet-simple-labels/master/imagenet-simple-labels.json"
-with urllib.request.urlopen(LABELS_URL) as url:
-    labels = json.loads(url.read().decode())
-
-# Image preprocessing pipeline
-preprocess = transforms.Compose([
-    transforms.Resize(256),
-    transforms.CenterCrop(224),
-    transforms.ToTensor(),
-    transforms.Normalize(
-        mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225]
-    )
-])
+def classify_image(image_bytes):
+    headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+    response = requests.post(API_URL, headers=headers, data=image_bytes)
+    return response.json()
 
 @app.route("/")
 def home():
@@ -47,23 +26,21 @@ def classify():
         return jsonify({"error": "No image selected"})
 
     try:
-        img_bytes = file.read()
-        img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-        tensor = preprocess(img).unsqueeze(0)
+        image_bytes = file.read()
+        results = classify_image(image_bytes)
 
-        with torch.no_grad():
-            outputs = model(tensor)
-            probabilities = torch.nn.functional.softmax(outputs[0], dim=0)
+        if isinstance(results, dict) and "error" in results:
+            return jsonify({"error": results["error"]})
 
-        top5_prob, top5_idx = torch.topk(probabilities, 5)
-        results = []
-        for prob, idx in zip(top5_prob, top5_idx):
-            results.append({
-                "label": labels[idx.item()].replace("_", " ").title(),
-                "confidence": round(prob.item() * 100, 2)
+        # Format top 5 predictions
+        predictions = []
+        for item in results[:5]:
+            predictions.append({
+                "label": item["label"].replace("_", " ").title(),
+                "confidence": round(item["score"] * 100, 2)
             })
 
-        return jsonify({"predictions": results})
+        return jsonify({"predictions": predictions})
 
     except Exception as e:
         return jsonify({"error": str(e)})
