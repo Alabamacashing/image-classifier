@@ -3,3 +3,4 @@ gunicorn
 torch
 torchvision
 pillow
+
