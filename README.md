@@ -1,10 +1,13 @@
 # 🔍 Image Classifier
 
-A web app that classifies images into 1000 categories using ResNet-50.
+A web app that classifies images into 1000 categories using MobileNetV2.
+
+## 🌍 Live Demo
+👉 https://web-production-5cc1ab.up.railway.app
 
 ## How it works
 - Upload any image
-- ResNet-50 runs inference
+- MobileNetV2 runs inference
 - Returns top 5 predictions with confidence scores
 
 ## Tech Stack
