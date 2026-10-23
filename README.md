@@ -3,7 +3,7 @@
 A web app that classifies images into 1000 categories using MobileNetV2.
 
 ## 🌍 Live Demo
-👉 https://web-production-5cc1ab.up.railway.app
+👉 https://image-classifier.fly.dev/
 
 ## How it works
 - Upload any image
